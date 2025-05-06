@@ -6,7 +6,7 @@ using System.Text;
 
 namespace BC_Library.Service
 {
-    public abstract class CommonService
+    public static class CommonService
     {
         public static void MineBlock(BlockDto block, int difficulty)
         {
@@ -16,10 +16,7 @@ namespace BC_Library.Service
                 block.Nonce++;
                 block.Hash = block.CalculateHash();
             }
-
-            Console.WriteLine($"Block mined: {block.Hash}");
+            Console.WriteLine($"✅ Block mined: {block.Hash}");
         }
-
-
     }
 }
