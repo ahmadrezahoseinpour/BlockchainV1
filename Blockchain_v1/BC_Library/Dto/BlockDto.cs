@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 
 namespace BC_Library.Dto
 {
@@ -9,28 +10,27 @@ namespace BC_Library.Dto
     {
         public int Index { get; set; }
         public DateTime Timestamp { get; set; }
-        public string Data { get; set; }
+        public List<TransactionDto> Transactions { get; set; }
         public string PreviousHash { get; set; }
         public string Hash { get; set; }
         public int Nonce { get; set; }
 
-        public BlockDto(int index, string data, string previousHash)
+        public BlockDto(int index, List<TransactionDto> transactions, string previousHash)
         {
             Index = index;
             Timestamp = DateTime.UtcNow;
-            Data = data;
+            Transactions = transactions;
             PreviousHash = previousHash;
             Nonce = 0;
             Hash = CalculateHash();
         }
         public string CalculateHash()
         {
-            string rawData = Index + Timestamp.ToString() + Data + PreviousHash + Nonce;
-            using (var sha256 = SHA256.Create())
-            {
-                byte[] bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(rawData));
-                return Convert.ToBase64String(bytes);
-            }
+            string txData = JsonSerializer.Serialize(Transactions);
+            string rawData = Index + Timestamp.ToString() + txData + PreviousHash + Nonce;
+            using var sha265 = SHA256.Create();
+            var bytes = sha265.ComputeHash(Encoding.UTF8.GetBytes(rawData));
+            return Convert.ToBase64String(bytes);
         }
 
     }
