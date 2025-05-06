@@ -26,7 +26,7 @@ namespace BC_Library.Service
         private BlockDto CreateGenesisBlock()
         {
             return new BlockDto(0, new List<TransactionDto>(), "0", Difficulty);
-        }
+        }   
         private List<BlockDto> LoadChainFromFile()
         {
             try
