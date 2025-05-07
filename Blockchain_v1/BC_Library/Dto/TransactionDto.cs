@@ -14,7 +14,7 @@ namespace BC_Library.Dto
         public string ToAddress { get; set; }
         public decimal Amount { get; set; }
         public decimal Fee { get; set; }
-        public string  Signature { get; set; }
+        public string Signature { get; set; }
         public DateTime Timestamp { get; set; }
         public SmartContractDto? SmartContract { get; set; }
 
@@ -36,9 +36,10 @@ namespace BC_Library.Dto
             var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(data));
             return Convert.ToBase64String(bytes);
         }
+
         public void SignTransaction(RSA privateKey)
         {
-            if (FromAddress == null) return; 
+            if (FromAddress == null) return; // Validator reward transaction
             string hash = CalculateHash();
             var signatureBytes = privateKey.SignData(Encoding.UTF8.GetBytes(hash), HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
             Signature = Convert.ToBase64String(signatureBytes);
@@ -46,11 +47,10 @@ namespace BC_Library.Dto
 
         public bool VerifySignature(RSA publicKey)
         {
-            if (Signature == null) return FromAddress == null;
+            if (Signature == null) return FromAddress == null; // Validator reward transaction
             var hash = CalculateHash();
             var signatureBytes = Convert.FromBase64String(Signature);
             return publicKey.VerifyData(Encoding.UTF8.GetBytes(hash), signatureBytes, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         }
     }
-
 }
