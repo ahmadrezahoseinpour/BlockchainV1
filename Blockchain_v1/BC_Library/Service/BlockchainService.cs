@@ -36,18 +36,23 @@ namespace BC_Library.Service
             _validators = new List<WalletDto>();
             _balanceCache = new Dictionary<string, decimal>();
         }
+        
         private BlockDto CreateGenesisBlock()
         {
-            return new BlockDto(0, new List<TransactionDto>(), "0", string.Empty);
-        }   
+            return new BlockDto(0, new List<TransactionDto>(), "0", string.Empty, DateTime.UtcNow);
+        }
+
         private List<BlockDto> LoadChainFromFile()
         {
             try
             {
-                if (File.Exists(_chainFilePath))
+                lock (_fileLock)
                 {
-                    string json = File.ReadAllText(_chainFilePath);
-                    return JsonSerializer.Deserialize<List<BlockDto>>(json);
+                    if (File.Exists(_chainFilePath))
+                    {
+                        string json = File.ReadAllText(_chainFilePath);
+                        return JsonSerializer.Deserialize<List<BlockDto>>(json);
+                    }
                 }
             }
             catch (Exception ex)
@@ -61,27 +66,33 @@ namespace BC_Library.Service
         {
             try
             {
-                string json = JsonSerializer.Serialize(Chain, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(_chainFilePath, json);
+                lock (_fileLock)
+                {
+                    string json = JsonSerializer.Serialize(_chain, new JsonSerializerOptions { WriteIndented = true });
+                    File.WriteAllText(_chainFilePath, json);
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error saving blockchain to file");
             }
         }
+
         public void RegisterValidator(WalletDto wallet)
         {
-            if (wallet.Stake >= 100m) // Minimum stake requirement
+            if (wallet.Stake < MINIMUM_STAKE)
+            {
+                _logger.LogWarning($"Validator registration failed: Insufficient stake ({wallet.Stake})");
+                return;
+            }
+
+            lock (_validators)
             {
                 _validators.Add(wallet);
                 _logger.LogInformation($"Validator registered: {wallet.PublicKey.Substring(0, 20)}...");
             }
-            else
-            {
-                _logger.LogWarning($"Validator registration failed: Insufficient stake ({wallet.Stake})");
-            }
         }
-
+        
         public bool CreateTransaction(TransactionDto tx, RSA publicKey)
         {
             if (!IsValidTransaction(tx, publicKey))
