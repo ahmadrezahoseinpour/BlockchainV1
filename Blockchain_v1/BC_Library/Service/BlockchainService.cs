@@ -172,15 +172,37 @@ namespace BC_Library.Service
 
         public WalletDto SelectValidator()
         {
-            if (_validators.Count == 0) return null;
-            // Simplified PoS: Select validator with highest stake
-            return _validators.OrderByDescending(v => v.Stake).First();
+            lock (_validators)
+            {
+                if (_validators.Count == 0) return null;
+
+                // Weighted random selection based on stake
+                decimal totalStake = _validators.Sum(v => v.Stake);
+                decimal randomValue = (decimal)_random.NextDouble() * totalStake;
+                decimal cumulative = 0;
+
+                foreach (var validator in _validators)
+                {
+                    cumulative += validator.Stake;
+                    if (randomValue <= cumulative)
+                    {
+                        return validator;
+                    }
+                }
+
+                return _validators.Last(); // Fallback
+            }
         }
 
         public decimal GetBalance(string publicKey)
         {
+            if (_balanceCache.TryGetValue(publicKey, out decimal cachedBalance))
+            {
+                return cachedBalance;
+            }
+
             decimal balance = 0;
-            foreach (var block in Chain)
+            foreach (var block in _chain)
             {
                 foreach (var tx in block.Transactions)
                 {
@@ -190,15 +212,32 @@ namespace BC_Library.Service
                         balance += tx.Amount;
                 }
             }
+
+            _balanceCache[publicKey] = balance;
             return balance;
+        }
+
+        private void UpdateBalanceCache(List<TransactionDto> transactions)
+        {
+            foreach (var tx in transactions)
+            {
+                if (tx.FromAddress != null)
+                {
+                    _balanceCache[tx.FromAddress] = GetBalance(tx.FromAddress);
+                }
+                if (tx.ToAddress != null)
+                {
+                    _balanceCache[tx.ToAddress] = GetBalance(tx.ToAddress);
+                }
+            }
         }
 
         public bool IsChainValid()
         {
-            for (int i = 1; i < Chain.Count; i++)
+            for (int i = 1; i < _chain.Count; i++)
             {
-                var current = Chain[i];
-                var previous = Chain[i - 1];
+                var current = _chain[i];
+                var previous = _chain[i - 1];
 
                 if (current.Hash != current.CalculateHash())
                 {
