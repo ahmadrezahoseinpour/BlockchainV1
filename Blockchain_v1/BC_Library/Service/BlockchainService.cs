@@ -13,20 +13,28 @@ namespace BC_Library.Service
 {
     public class BlockchainService
     {
-        public List<BlockDto> Chain { get; set; }
-        public List<TransactionDto> PendingTransactions { get; private set; }
-        public decimal MinimumFee { get; set; } = 0.1m;
-        public decimal ValidatorReward { get; set; } = 5m;
-        private readonly string _chainFilePath = "blockchain.json";
-        private readonly ILogger<BlockchainService> _logger;
+        private readonly List<BlockDto> _chain;
+        private readonly ConcurrentBag<TransactionDto> _pendingTransactions;
+        private readonly Dictionary<string, decimal> _balanceCache;
         private readonly List<WalletDto> _validators;
+        private readonly string _chainFilePath;
+        private readonly ILogger<BlockchainService> _logger;
+        private readonly object _fileLock = new object();
+        private readonly Random _random = new Random();
 
-        public BlockchainService(ILogger<BlockchainService> logger)
+        // Constants
+        private const decimal MINIMUM_FEE = 0.1m;
+        private const decimal VALIDATOR_REWARD = 5m;
+        private const decimal MINIMUM_STAKE = 100m;
+
+        public BlockchainService(ILogger<BlockchainService> logger, string chainFilePath = "blockchain.json")
         {
             _logger = logger;
-            Chain = LoadChainFromFile() ?? new List<BlockDto> { CreateGenesisBlock() };
-            PendingTransactions = new List<TransactionDto>();
+            _chainFilePath = chainFilePath;
+            _chain = LoadChainFromFile() ?? new List<BlockDto> { CreateGenesisBlock() };
+            _pendingTransactions = new ConcurrentBag<TransactionDto>();
             _validators = new List<WalletDto>();
+            _balanceCache = new Dictionary<string, decimal>();
         }
         private BlockDto CreateGenesisBlock()
         {
