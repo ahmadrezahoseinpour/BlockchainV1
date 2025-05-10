@@ -100,7 +100,8 @@ namespace BC_Library.Service
                 _logger.LogWarning("Invalid transaction rejected");
                 return false;
             }
-            PendingTransactions.Add(tx);
+
+            _pendingTransactions.Add(tx);
             _logger.LogInformation($"Transaction added: {tx.Amount} from {tx.FromAddress?.Substring(0, 20)}...");
             return true;
         }
@@ -113,7 +114,7 @@ namespace BC_Library.Service
                 return false;
             }
 
-            if (tx.Amount <= 0 || tx.Fee < MinimumFee)
+            if (tx.Amount <= 0 || tx.Fee < MINIMUM_FEE)
             {
                 _logger.LogWarning($"Invalid transaction: Amount={tx.Amount}, Fee={tx.Fee}");
                 return false;
@@ -135,6 +136,13 @@ namespace BC_Library.Service
                 }
             }
 
+            // Check for double-spending
+            if (_pendingTransactions.Any(pt => pt.FromAddress == tx.FromAddress && pt.Id == tx.Id))
+            {
+                _logger.LogWarning("Double-spending attempt detected");
+                return false;
+            }
+
             return true;
         }
 
@@ -146,12 +154,20 @@ namespace BC_Library.Service
                 return;
             }
 
-            var block = new BlockDto(Chain.Count, new List<TransactionDto>(PendingTransactions), Chain.Last().Hash, validatorPublicKey);
-            Chain.Add(block);
+            var transactions = _pendingTransactions.ToList();
+            var block = new BlockDto(_chain.Count, transactions, _chain.Last().Hash, validatorPublicKey, DateTime.UtcNow);
+            lock (_chain)
+            {
+                _chain.Add(block);
+            }
+
             SaveChainToFile();
-            PendingTransactions.Clear();
-            PendingTransactions.Add(new TransactionDto(null, validatorPublicKey, ValidatorReward, 0m));
+            _pendingTransactions.Clear();
+            _pendingTransactions.Add(new TransactionDto(null, validatorPublicKey, VALIDATOR_REWARD, 0m));
             _logger.LogInformation($"Block #{block.Index} validated by {validatorPublicKey.Substring(0, 20)}...");
+
+            // Update balance cache
+            UpdateBalanceCache(transactions);
         }
 
         public WalletDto SelectValidator()
